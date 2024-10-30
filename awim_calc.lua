@@ -8,7 +8,7 @@ local binary_prefix = 'b'
 local decimal_prefix = 'd'
 local hexa_prefix = 'h'
 local radix_conversion_string = 'convert'
-local last_answer_access_string = 'ANS'
+local last_answer_access_string = 'ans'
 local last_answer = '0'
 local input_buf
 local result_buf
@@ -148,7 +148,7 @@ function M.setup(opts)
     decimal_prefix = opts.decimal_prefix or 'd'
     hexa_prefix = opts.hexa_prefix or 'h'
     radix_conversion_string = opts.radix_conversion_string or 'convert'
-    last_answer_access_string = opts.last_answer_access_string or 'ANS'
+    last_answer_access_string = opts.last_answer_access_string or 'ans'
     vim.api.nvim_create_user_command('Calculator', M.create_calculator_window, {})
 end
 
