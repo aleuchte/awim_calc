@@ -1,7 +1,9 @@
 # awim_calc
-Calculator plugin for neovim written in lua
+**awim_calc** is a calculator plugin for neovim written in lua.
 
-Lazy setup:
+## Lazy setup:
+
+```lua
 return {
     'aleuchte/awim_calc',
     name = 'awim_calc',
@@ -19,3 +21,4 @@ return {
     end,
     cmd = { 'Calculator' },                        -- Lazy loading upon command
 }
+```
