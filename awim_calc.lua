@@ -98,17 +98,29 @@ function M.evaluate_calculation()
             decimal = tonumber(hex, 16)
             binary = to_binary(decimal)
         else
-            return { 'Error: Invalid number_input format. Must start with "b", "d", or "h" followed by the number in the right format.' }
+            return { 'Error: ' .. number_input .. ' Invalid number_input format. Must start with "b", "d", or "h" followed by the number in the right format.' }
         end
         return { 'bin: ' .. binary, 'dec: ' .. decimal, 'hex: ' .. hex }
     end
 
-    local result
+    local function evaluate_expression(expression)
+        local env = { math = math, log2 = math.log }
+        env.log2 = function(x) return math.log(x) / math.log(2) end
+        local func, load_err = load('return ' .. expression, 'expression', 't', env)
+        if not func then
+            local result_line_count = vim.api.nvim_buf_line_count(result_buf) --  FIXME - aleuchte - 30.10.24 - make nice error here
+            vim.api.nvim_buf_set_lines(result_buf, result_line_count, result_line_count, false, { load_err })
+        end
+        return func
+    end
+
+    local result, result_func
     if input:match('^' .. radix_conversion_string .. '%s+') then
         local number_input = input:sub(#radix_conversion_string + 1):gsub('%s+', '')
         result = convert_number(number_input)
     else
-        local result_func = load('return ' .. input)
+        result_func = evaluate_expression(input) --  FIXME - aleuchte - 30.10.24 - substitute the need for math in math.sqrt etc.
+        -- result_func = load('return ' .. input)
         if result_func then
             local success, eval_result = pcall(result_func)
             if success then
@@ -116,10 +128,10 @@ function M.evaluate_calculation()
                 result = { input .. ' = ' .. eval_result }
                 last_answer = eval_result
             else
-                result = { 'Error: Invalid expression'}
+                result = { 'Error: ' .. input .. ' Invalid expression'}
             end
         else
-            result = { 'Error: Invalid expression'}
+            result = { 'Error: ' .. input .. ' Invalid expression'}
         end
     end
 
