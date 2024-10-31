@@ -177,7 +177,7 @@ function M.evaluate_calculation()
             local success, eval_result = pcall(result_func)
             if success then
                 eval_result = eval_result ~= nil and tostring(eval_result) or 'nil'
-                result = { input .. ' = ' .. eval_result }
+                if eval_result ~= 'nil' then result = { input .. ' = ' .. eval_result } else result = nil end
                 last_answer = eval_result
             else
                 result = { 'Error: ' .. input .. ' Invalid expression'}
