@@ -17,7 +17,7 @@ local result_win
 
 function M.create_calculator_window()
     local col = math.floor((vim.o.columns - width) / 2)
-    local row = math.floor((vim.o.lines - height - input_height) / 2)
+    local row = math.floor((vim.o.lines - height) / 2)
 
     result_buf = vim.api.nvim_create_buf(false, true)
     input_buf = vim.api.nvim_create_buf(false, true)
@@ -57,6 +57,8 @@ function M.create_calculator_window()
 
     vim.api.nvim_buf_set_keymap(input_buf, 'n', 'q', '<Cmd>lua require("awim_calc").close_calculator()<CR>', { noremap = true, silent = true, desc = 'Close Calculator' })
     vim.api.nvim_buf_set_keymap(input_buf, 'n', '<Esc>', '<Cmd>lua require("awim_calc").close_calculator()<CR>', { noremap = true, silent = true, desc = 'Close Calculator' })
+    vim.api.nvim_buf_set_keymap(result_buf, 'n', 'q', '<Cmd>lua require("awim_calc").close_calculator()<CR>', { noremap = true, silent = true, desc = 'Close Calculator' })
+    vim.api.nvim_buf_set_keymap(result_buf, 'n', '<Esc>', '<Cmd>lua require("awim_calc").close_calculator()<CR>', { noremap = true, silent = true, desc = 'Close Calculator' })
     vim.api.nvim_buf_set_keymap(input_buf, 'i', '<CR>', [[<Cmd>lua require('awim_calc').evaluate_calculation()<CR>]], { noremap = true, silent = true, desc = 'Enter evaluates the results and moves to the next line' })
     vim.api.nvim_buf_set_keymap(input_buf, 'i', '<A-c>', 'convert ', { noremap = false, silent = true, desc = 'Insert "convert"' })
 end
@@ -98,7 +100,7 @@ function M.evaluate_calculation()
             decimal = tonumber(hex, 16)
             binary = to_binary(decimal)
         else
-            return { 'Error: ' .. number_input .. ' Invalid number_input format. Must start with "b", "d", or "h" followed by the number in the right format.' }
+            return { 'Error: ' .. number_input .. ' Invalid number_input format.', 'Must start with "b", "d", or "h" followed by the number in the right format.' }
         end
         return { 'bin: ' .. binary, 'dec: ' .. decimal, 'hex: ' .. hex }
     end
@@ -106,12 +108,7 @@ function M.evaluate_calculation()
     local function evaluate_expression(expression)
         local env = { math = math, log2 = math.log }
         env.log2 = function(x) return math.log(x) / math.log(2) end
-        local func, load_err = load('return ' .. expression, 'expression', 't', env)
-        if not func then
-            local result_line_count = vim.api.nvim_buf_line_count(result_buf) --  FIXME - aleuchte - 30.10.24 - make nice error here
-            vim.api.nvim_buf_set_lines(result_buf, result_line_count, result_line_count, false, { load_err })
-        end
-        return func
+        return load('return ' .. expression, 'expression', 't', env)
     end
 
     local result, result_func
@@ -119,8 +116,7 @@ function M.evaluate_calculation()
         local number_input = input:sub(#radix_conversion_string + 1):gsub('%s+', '')
         result = convert_number(number_input)
     else
-        result_func = evaluate_expression(input) --  FIXME - aleuchte - 30.10.24 - substitute the need for math in math.sqrt etc.
-        -- result_func = load('return ' .. input)
+        result_func, error_string = evaluate_expression(input)
         if result_func then
             local success, eval_result = pcall(result_func)
             if success then
@@ -131,7 +127,7 @@ function M.evaluate_calculation()
                 result = { 'Error: ' .. input .. ' Invalid expression'}
             end
         else
-            result = { 'Error: ' .. input .. ' Invalid expression'}
+            result = { 'Error: ' .. input .. ' threw the following exception: ' .. error_string }
         end
     end
 
@@ -154,8 +150,8 @@ end
 function M.setup(opts)
     opts = opts or {}
     max_allowed_calculation_history = opts.max_allowed_calculation_history or 10
-    width = opts.width or 100
-    height = opts.height or 20
+    width = width or 100
+    height = (height - input_height) or 20
     binary_prefix = opts.binary_prefix or 'b'
     decimal_prefix = opts.decimal_prefix or 'd'
     hexa_prefix = opts.hexa_prefix or 'h'
