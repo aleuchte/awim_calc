@@ -4,6 +4,7 @@ local max_allowed_calculation_history = 10
 local width = 100
 local height = 20
 local input_height = 2
+local help_window_height = 5
 local binary_prefix = 'b'
 local decimal_prefix = 'd'
 local hexa_prefix = 'h'
@@ -12,8 +13,44 @@ local last_answer_access_string = 'ans'
 local last_answer = '0'
 local input_buf
 local result_buf
+local help_buf
 local input_win
 local result_win
+local key_mappings = {
+    ['<A-l>'] = { func = 'log2()', desc = 'Log base 2' },
+    ['<A-s>'] = { func = 'math.sqrt()', desc = 'Square root' },
+}
+
+function M.create_help_window()
+    local col = 0
+    local row = 0
+
+    help_buf = vim.api.nvim_create_buf(false, true)
+
+    help_win = vim.api.nvim_open_win(help_buf, true, {
+        relative = 'editor',
+        width = vim.o.columns,
+        height = help_window_height,
+        col = col,
+        row = row,
+        style = 'minimal',
+        border = 'rounded'
+    })
+
+    -- Set filetype to nofile so we can exit nvim without issues
+    vim.api.nvim_buf_set_option(help_buf, 'buftype', 'nofile')
+
+    local help_text = ""
+    for key, mapping in pairs(key_mappings) do
+        help_text = help_text .. key .. ' -> ' .. mapping.func .. ' -> ' .. mapping.desc .. '\n'
+    end
+    vim.api.nvim_buf_set_lines(help_buf, 0, -1, false, vim.split(help_text, "\n"))
+    vim.api.nvim_buf_set_option(help_buf, 'modifiable', false)
+
+    vim.api.nvim_buf_set_keymap(help_buf, 'n', 'q', '<Cmd>lua require("awim_calc").close_calculator()<CR>', { noremap = true, silent = true, desc = 'Close Calculator' })
+    vim.api.nvim_buf_set_keymap(help_buf, 'n', '<Esc>', '<Cmd>lua require("awim_calc").close_calculator()<CR>', { noremap = true, silent = true, desc = 'Close Calculator' })
+
+end
 
 function M.create_calculator_window()
     local col = math.floor((vim.o.columns - width) / 2)
@@ -43,8 +80,8 @@ function M.create_calculator_window()
     })
 
     -- Set filetype to nofile so we can exit nvim without issues
-    vim.bo[input_buf].buftype = 'nofile'
-    vim.bo[result_buf].buftype = 'nofile'
+    vim.api.nvim_buf_set_option(input_buf, 'buftype', 'nofile')
+    vim.api.nvim_buf_set_option(result_buf, 'buftype', 'nofile')
 
     local initial_result_lines = { 'Awim Calculator', '' }
     vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, initial_result_lines)
@@ -61,11 +98,25 @@ function M.create_calculator_window()
     vim.api.nvim_buf_set_keymap(result_buf, 'n', '<Esc>', '<Cmd>lua require("awim_calc").close_calculator()<CR>', { noremap = true, silent = true, desc = 'Close Calculator' })
     vim.api.nvim_buf_set_keymap(input_buf, 'i', '<CR>', [[<Cmd>lua require('awim_calc').evaluate_calculation()<CR>]], { noremap = true, silent = true, desc = 'Enter evaluates the results and moves to the next line' })
     vim.api.nvim_buf_set_keymap(input_buf, 'i', '<A-c>', 'convert ', { noremap = false, silent = true, desc = 'Insert "convert"' })
+    vim.api.nvim_buf_set_keymap(input_buf, 'i', '<A-h>', '<Esc><Cmd>Calculatorhelp<CR>', { noremap = false, silent = true, desc = 'Open Calculator help window' })
+    vim.api.nvim_buf_set_keymap(input_buf, 'n', '<A-h>', '<Esc><Cmd>Calculatorhelp<CR>', { noremap = false, silent = true, desc = 'Open Calculator help window' })
+    vim.api.nvim_buf_set_keymap(result_buf, 'i', '<A-h>', '<Esc><Cmd>Calculatorhelp<CR>', { noremap = false, silent = true, desc = 'Open Calculator help window' })
+    vim.api.nvim_buf_set_keymap(result_buf, 'n', '<A-h>', '<Esc><Cmd>Calculatorhelp<CR>', { noremap = false, silent = true, desc = 'Open Calculator help window' })
+
+    for key, mapping in pairs(key_mappings) do
+        vim.api.nvim_buf_set_keymap(input_buf, 'i', key, mapping.func .. '<Left>', { noremap = false, silent = true })
+    end
 end
 
 function M.close_calculator()
-    vim.api.nvim_buf_delete(input_buf, { force = true })
-    vim.api.nvim_buf_delete(result_buf, { force = true })
+    if (help_buf and vim.api.nvim_buf_is_valid(help_buf) and (vim.api.nvim_get_current_buf() == help_buf)) then
+        vim.api.nvim_buf_delete(help_buf, { force = true })
+        vim.cmd('startinsert')
+    else
+        if input_buf and vim.api.nvim_buf_is_valid(input_buf) then vim.api.nvim_buf_delete(input_buf, { force = true }) end
+        if result_buf and vim.api.nvim_buf_is_valid(result_buf) then vim.api.nvim_buf_delete(result_buf, { force = true }) end
+        if help_buf and vim.api.nvim_buf_is_valid(help_buf) then vim.api.nvim_buf_delete(help_buf, { force = true }) end
+    end
 end
 
 function M.evaluate_calculation()
@@ -111,7 +162,7 @@ function M.evaluate_calculation()
         return load('return ' .. expression, 'expression', 't', env)
     end
 
-    local result, result_func
+    local result, result_func, error_string
     if input:match('^' .. radix_conversion_string .. '%s+') then
         local number_input = input:sub(#radix_conversion_string + 1):gsub('%s+', '')
         result = convert_number(number_input)
@@ -135,7 +186,7 @@ function M.evaluate_calculation()
         local result_line_count = vim.api.nvim_buf_line_count(result_buf)
         vim.api.nvim_buf_set_lines(result_buf, result_line_count, result_line_count, false, result)
 
-        local result_oneliner = table.concat(result, ' ')
+        local result_oneliner = table.concat(result, ' ') --  FIXME - aleuchte - 31.10.24 - don't save errors in history
         table.insert(calculation_history, result_oneliner)
     end
 
@@ -158,6 +209,7 @@ function M.setup(opts)
     radix_conversion_string = opts.radix_conversion_string or 'convert'
     last_answer_access_string = opts.last_answer_access_string or 'ans'
     vim.api.nvim_create_user_command('Calculator', M.create_calculator_window, {})
+    vim.api.nvim_create_user_command('Calculatorhelp', M.create_help_window, {})
 end
 
 return M
