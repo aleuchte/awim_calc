@@ -18,6 +18,7 @@ return {
             hexa_prefix = 'h'                      -- Prefix for hexadecimal numbers
             radix_conversion_string = 'convert'    -- String to use for radix conversion
             last_answer_access_string = 'ans'      -- String to use to access the last answer
+            title_color = '#0000FF'                -- Depending on you colorscheme you can change this
         })
     end,
     cmd = { 'Calculator' },                        -- Lazy loading upon command

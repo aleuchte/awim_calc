@@ -16,6 +16,8 @@ local result_buf
 local help_buf
 local input_win
 local result_win
+local calculator_title = 'Awim Calculator'
+local title_color = '#0000FF'
 local key_mappings = {
     ['<A-l>'] = { func = 'log2()', desc = 'Log base 2' },
     ['<A-s>'] = { func = 'math.sqrt()', desc = 'Square root' },
@@ -83,8 +85,11 @@ function M.create_calculator_window()
     vim.api.nvim_buf_set_option(input_buf, 'buftype', 'nofile')
     vim.api.nvim_buf_set_option(result_buf, 'buftype', 'nofile')
 
-    local initial_result_lines = { 'Awim Calculator', '' }
+    local centered_title = string.rep(" ", math.floor((width - #calculator_title) / 2)) .. calculator_title --  FIXME - aleuchte - 31.10.24 - make sure title stays even when window scrolls down
+    local initial_result_lines = { centered_title, '' }
     vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, initial_result_lines)
+    vim.api.nvim_buf_add_highlight(result_buf, -1, "CalculatorTitle", 0, 0, -1)
+    vim.api.nvim_set_hl(0, "CalculatorTitle", { fg = title_color, bold = true })
 
     for i = math.max(#calculation_history - (max_allowed_calculation_history - 1), 1), #calculation_history do
         vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, { calculation_history[i] })
@@ -194,6 +199,9 @@ function M.evaluate_calculation()
         table.remove(calculation_history, 1)
     end
 
+    local result_buf_line_count = vim.api.nvim_buf_line_count(result_buf)
+    vim.api.nvim_win_set_cursor(result_win, { result_buf_line_count, 0 }) -- make sure we scroll down in the result window
+
     vim.api.nvim_buf_set_lines(input_buf, line_number - 1, line_number, false, { '' })
     vim.api.nvim_win_set_cursor(input_win, { line_number, 0 })
 end
@@ -208,6 +216,7 @@ function M.setup(opts)
     hexa_prefix = opts.hexa_prefix or 'h'
     radix_conversion_string = opts.radix_conversion_string or 'convert'
     last_answer_access_string = opts.last_answer_access_string or 'ans'
+    title_color = opts.title_color or '#0000FF'
     vim.api.nvim_create_user_command('Calculator', M.create_calculator_window, {})
     vim.api.nvim_create_user_command('Calculatorhelp', M.create_help_window, {})
 end
