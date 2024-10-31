@@ -9,6 +9,7 @@ return {
     name = 'awim_calc',
     config = function()
         require('awim_calc').setup({
+            -- The following options are all optional and can be left as default
             max_allowed_calculation_history = 10,  -- Maximum number of calculations to store in history
             width = 100                            -- Width of the calculator window
             height = 20                            -- Height of the calculator window
