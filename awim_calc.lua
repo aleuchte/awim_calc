@@ -1,9 +1,10 @@
 local M = {}
 local calculation_history = {}
+local input_history = {}
 local max_allowed_calculation_history = 10
 local width = 100
 local height = 20
-local input_height = 2
+local input_height = 1
 local help_window_height = 5
 local binary_prefix = 'b'
 local decimal_prefix = 'd'
@@ -18,6 +19,7 @@ local input_win
 local result_win
 local calculator_title = 'Awim Calculator'
 local title_color = '#0000FF'
+local input_window_prefix = '> '
 local key_mappings = {
     ['<A-l>'] = { func = 'log2()', desc = 'Log base 2' },
     ['<A-s>'] = { func = 'math.sqrt()', desc = 'Square root' },
@@ -36,7 +38,7 @@ function M.create_help_window()
         col = col,
         row = row,
         style = 'minimal',
-        border = 'rounded'
+        border = 'single'
     })
 
     -- Set filetype to nofile so we can exit nvim without issues
@@ -68,7 +70,7 @@ function M.create_calculator_window()
         col = col,
         row = row,
         style = 'minimal',
-        border = 'rounded'
+        border = 'single'
     })
 
     input_win = vim.api.nvim_open_win(input_buf, true, {
@@ -76,9 +78,9 @@ function M.create_calculator_window()
         width = width,
         height = input_height,
         col = col,
-        row = row + height,
+        row = row + height + 2, --  FIXME - aleuchte - 31.10.24 - parametrize
         style = 'minimal',
-        border = 'rounded'
+        border = 'single'
     })
 
     -- Set filetype to nofile so we can exit nvim without issues
@@ -95,7 +97,9 @@ function M.create_calculator_window()
         vim.api.nvim_buf_set_lines(result_buf, -1, -1, false, { calculation_history[i] })
     end
 
+    vim.api.nvim_buf_set_lines(input_buf, 0, -1, false, { input_window_prefix })
     vim.cmd('startinsert')
+    vim.api.nvim_win_set_cursor(input_win, { 1, #input_window_prefix + 1 }) -- Position cursor after "> "
 
     vim.api.nvim_buf_set_keymap(input_buf, 'n', 'q', '<Cmd>lua require("awim_calc").close_calculator()<CR>', { noremap = true, silent = true, desc = 'Close Calculator' })
     vim.api.nvim_buf_set_keymap(input_buf, 'n', '<Esc>', '<Cmd>lua require("awim_calc").close_calculator()<CR>', { noremap = true, silent = true, desc = 'Close Calculator' })
@@ -117,6 +121,7 @@ function M.close_calculator()
     if (help_buf and vim.api.nvim_buf_is_valid(help_buf) and (vim.api.nvim_get_current_buf() == help_buf)) then
         vim.api.nvim_buf_delete(help_buf, { force = true })
         vim.cmd('startinsert')
+        vim.api.nvim_win_set_cursor(input_win, { 1, #input_window_prefix + 1 }) -- Position cursor after "> "
     else
         if input_buf and vim.api.nvim_buf_is_valid(input_buf) then vim.api.nvim_buf_delete(input_buf, { force = true }) end
         if result_buf and vim.api.nvim_buf_is_valid(result_buf) then vim.api.nvim_buf_delete(result_buf, { force = true }) end
@@ -168,6 +173,7 @@ function M.evaluate_calculation()
     end
 
     local result, result_func, error_string
+    input = input:gsub(input_window_prefix, '')
     if input:match('^' .. radix_conversion_string .. '%s+') then
         local number_input = input:sub(#radix_conversion_string + 1):gsub('%s+', '')
         result = convert_number(number_input)
@@ -193,17 +199,22 @@ function M.evaluate_calculation()
 
         local result_oneliner = table.concat(result, ' ') --  FIXME - aleuchte - 31.10.24 - don't save errors in history
         table.insert(calculation_history, result_oneliner)
+        table.insert(input_history, input)
     end
 
     if #calculation_history > max_allowed_calculation_history then
         table.remove(calculation_history, 1)
     end
 
+    if #input_history > max_allowed_calculation_history then
+        table.remove(input_history, 1)
+    end
+
     local result_buf_line_count = vim.api.nvim_buf_line_count(result_buf)
     vim.api.nvim_win_set_cursor(result_win, { result_buf_line_count, 0 }) -- make sure we scroll down in the result window
 
-    vim.api.nvim_buf_set_lines(input_buf, line_number - 1, line_number, false, { '' })
-    vim.api.nvim_win_set_cursor(input_win, { line_number, 0 })
+    vim.api.nvim_buf_set_lines(input_buf, line_number - 1, line_number, false, { input_window_prefix })
+    vim.api.nvim_win_set_cursor(input_win, { line_number, #input_window_prefix + 1 })
 end
 
 function M.setup(opts)
